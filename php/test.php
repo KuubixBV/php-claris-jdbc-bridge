@@ -1,5 +1,5 @@
 <?php
-require "./php/PJBridge.php";
+require "./PJBridge.php";
 
 // Default
 $host = 'localhost';
