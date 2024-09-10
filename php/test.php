@@ -26,7 +26,7 @@ $cursor = $bridge->exec($sql);
 
 // Check if any data has been received
 if(!$cursor){
-    throw new Exeception("No data returned from query. Are you sure the query is correctly formatted?");
+    throw new Exception("No data returned from query. Are you sure the query is correctly formatted?");
 }
 
 // Print received data
