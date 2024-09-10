@@ -23,6 +23,13 @@ if (!$connection) {
 
 // Try to receive data
 $cursor = $bridge->exec($sql);
+
+// Check if any data has been received
+if(!$cursor){
+    throw new Exeception("No data returned from query. Are you sure the query is correctly formatted?");
+}
+
+// Print received data
 while($row = $bridge->fetch_array($cursor)){
       print_r($row);
 }
