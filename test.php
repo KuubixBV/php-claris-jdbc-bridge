@@ -23,7 +23,7 @@ if (!$connection) {
 
 // Try to receive data
 $cursor = $bridge->exec($sql);
-while($row = $bridge->fetch_array($cursor){
+while($row = $bridge->fetch_array($cursor)){
       print_r($row);
 }
 $bridge->free_result($cursor);
