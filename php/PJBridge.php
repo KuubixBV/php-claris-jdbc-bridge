@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright (C) 2007 lenny@mondogrigio.cjb.net
  *
@@ -19,137 +20,123 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-/**
- * Modified by: Yentl Hendrickx @ 2024-04
- */
+class PJBridge {
 
-namespace App\JDBC;
+	private $sock;
+        private $jdbc_enc;
+        private $app_enc;
 
-use App\Interfaces\JdbcInterface;
-use Exception;
+        public $last_search_length = 0;
 
-class PJBridge implements JdbcInterface
-{
+	function __construct($host="localhost", $port="4444", $jdbc_enc="ascii", $app_enc="ascii") {
 
-    private $sock;
-    private string $jdbc_enc;
-    private string $app_enc;
+		$this->sock = fsockopen($host, $port);
+                $this->jdbc_enc = $jdbc_enc;
+                $this->app_enc = $app_enc;
+ 	}
 
-    public int $last_search_length = 0;
+	function __destruct() {
+	
+		fclose($this->sock);
+	}
 
-    function __construct(string $host = "localhost", string $port = "4444", string $jdbc_enc = "ascii", string $app_enc = "ascii")
-    {
+	private function parse_reply() {
 
-        $this->sock = fsockopen($host, $port);
-        if (!$this->sock)
-            throw new Exception("Socket does not exist.");
-        $this->jdbc_enc = $jdbc_enc;
-        $this->app_enc = $app_enc;
-    }
+		$il = explode(' ', fgets($this->sock));
+		$ol = array();
 
-    function __destruct()
-    {
-        if (!$this->sock)
-            throw new Exception("Socket does not exist.");
-        fclose($this->sock);
-    }
+		foreach ($il as $value)
+			$ol[] = iconv($this->jdbc_enc, $this->app_enc, base64_decode($value));
 
-    private function parse_reply()
-    {
-        $il = explode(' ', fgets($this->sock));
-        $ol = array();
+		return $ol;
+	}
 
-        foreach ($il as $value)
-            $ol[] = iconv($this->jdbc_enc, $this->app_enc, base64_decode($value));
+	private function exchange($cmd_a) {
 
-        return $ol;
-    }
+		$cmd_s = '';
 
-    private function exchange(array $cmd_a)
-    {
-        $cmd_s = '';
+		foreach ($cmd_a as $tok)
+			$cmd_s .= base64_encode(iconv($this->app_enc, $this->jdbc_enc, $tok)).' ';
+		
+		$cmd_s = substr($cmd_s, 0, -1)."\n";
 
-        foreach ($cmd_a as $tok)
-            $cmd_s .= base64_encode(iconv($this->app_enc, $this->jdbc_enc, $tok)) . ' ';
+		fwrite($this->sock, $cmd_s);
+		
+		return $this->parse_reply();
+	}
 
-        $cmd_s = substr($cmd_s, 0, -1) . "\n";
+	public function connect($url, $user, $pass) {
 
-        fwrite($this->sock, $cmd_s);
+		$reply = $this->exchange(array('connect', $url, $user, $pass));
 
-        return $this->parse_reply();
-    }
+		switch ($reply[0]) {
 
-    public function connect(string $url, string $user, string $pass)
-    {
-        $reply = $this->exchange(array('connect', $url, $user, $pass));
+		case 'ok':
+			return true;
 
-        switch ($reply[0]) {
+		default:
+			return false;
+		}
+	}
 
-            case 'ok':
-                return true;
+	public function exec($query) {
 
-            default:
-                return false;
-        }
-    }
+		$cmd_a = array('exec', $query);
 
-    public function exec(string $query)
-    {
-        $cmd_a = array('exec', $query);
+		if (func_num_args() > 1) {
+		
+			$args = func_get_args();
 
-        if (func_num_args() > 1) {
+			for ($i = 1; $i < func_num_args(); $i ++)
+				$cmd_a[] = $args[$i];
+		}
 
-            $args = func_get_args();
+		$reply = $this->exchange($cmd_a);
 
-            for ($i = 1; $i < func_num_args(); $i++)
-                $cmd_a[] = $args[$i];
-        }
+		switch ($reply[0]) {
 
-        $reply = $this->exchange($cmd_a);
+		case 'ok':
+			return $reply[1];
 
-        switch ($reply[0]) {
+		default:
+			return false;
+		}
+	}
 
-            case 'ok':
-                return $reply[1];
+	public function fetch_array($res) {
 
-            default:
-                return false;
-        }
-    }
+		$reply = $this->exchange(array('fetch_array', $res));
 
-    public function fetch_array($res)
-    {
-        $reply = $this->exchange(array('fetch_array', $res));
+		switch ($reply[0]) {
 
-        switch ($reply[0]) {
+		case 'ok':
+			$row = array();
 
-            case 'ok':
-                $row = array();
+			for ($i = 0; $i < $reply[1]; $i ++) {
 
-                for ($i = 0; $i < $reply[1]; $i++) {
+				$col = $this->parse_reply($this->sock);
+				$row[$col[0]] = $col[1];
+			}
 
-                    $col = $this->parse_reply($this->sock);
-                    $row[$col[0]] = $col[1];
-                }
+			return $row;
 
-                return $row;
+		default:
+			return false;
+		}
+	}
 
-            default:
-                return false;
-        }
-    }
+	public function free_result($res) {
 
-    public function free_result($res)
-    {
+		$reply = $this->exchange(array('free_result', $res));
 
-        $reply = $this->exchange(array('free_result', $res));
+		switch ($reply[0]) {
 
-        switch ($reply[0]) {
-
-            case 'ok':
-                return true;
-            default:
-                return false;
-        }
-    }
+		case 'ok':
+			return true;
+		default:
+			return false;
+		}
+	}
 }
+
+?>
