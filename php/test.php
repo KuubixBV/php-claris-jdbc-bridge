@@ -1,5 +1,5 @@
 <?php
-require "./PJBridge.php";
+require "/opt/FileMaker/JDBC/php/PJBridge.php";
 
 // Default
 $host = 'localhost';
